@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Ingredient Scanner</title>
+    <script src="https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #19459d 10%, #932e8a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Floating Chemical Icons Animation */
+        .floating-icons {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .floating-icon {
+            position: absolute;
+            font-size: 2rem;
+            opacity: 1;
+            animation: floatUp 15s infinite linear;
+        }
+
+        .floating-icon.harmful {
+            color: #c60a1d;
+        }
+
+        .floating-icon.healthy {
+            color: #0d5e20;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: relative;
+            z-index: 2;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: headerFloat 6s ease-in-out infinite;
+        }
+
+        @keyframes headerFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+            font-weight: 300;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-content {
+            padding: 2.5rem;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2.5rem;
+        }
+
+        .input-section {
+            background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .input-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #4CAF50, #2196F3, #9C27B0);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .upload-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            padding: 12px 24px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .upload-btn:hover {
+            box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+        }
+
+        .camera-btn {
+            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+        }
+
+        .camera-btn:hover {
+            box-shadow: 0 8px 25px rgba(255, 152, 0, 0.4);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .image-preview {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .image-preview:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+
+        .search-label {
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: white;
+            padding: 0 10px;
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: 500;
+            z-index: 1;
+        }
+
+        .search-input {
+            width: 100%;
+            min-height: 120px;
+            padding: 1.5rem 1.5rem 1.5rem 3rem;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            transition: all 0.3s ease;
+            background: white;
+            position: relative;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 20px;
+            color: #999;
+            font-size: 1.2rem;
+            z-index: 1;
+        }
+
+        .analyze-btn {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        .analyze-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(33, 150, 243, 0.4);
+        }
+
+        .results-section {
+            background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: none;
+        }
+
+        .results-section.show {
+            display: block;
+        }
+
+        .results-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #9C27B0, #2196F3, #4CAF50);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .results-section h3 {
+            margin-bottom: 2rem;
+            color: #333;
+            font-weight: 500;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .results-section h3::before {
+            content: '🧪';
+            font-size: 1.3rem;
+        }
+
+        .ocr-output {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 2.5rem;
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .ocr-output::before {
+            content: 'Extracted Text';
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: white;
+            padding: 0 10px;
+            font-size: 0.8rem;
+            color: #666;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .analysis-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .analysis-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .analysis-table td {
+            padding: 1.5rem 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.3s ease;
+        }
+
+        .analysis-table tr:hover {
+            background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+            transform: scale(1.01);
+        }
+
+        .analysis-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-safe {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-caution {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            color: #856404;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-avoid {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-unknown {
+            background: linear-gradient(135deg, #e2e3e5 0%, #d1d3d4 100%);
+            color: #383d41;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.1rem;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin: 1.5rem 0;
+            border: 1px solid #f5c6cb;
+            font-weight: 500;
+        }
+
+        .history-section {
+            margin-top: 3rem;
+            background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .history-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #FF9800, #FF5722, #E91E63);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .history-header h3 {
+            color: #333;
+            font-weight: 500;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .history-header h3::before {
+            content: '📊';
+            font-size: 1.3rem;
+        }
+
+        .delete-history-btn {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+        }
+
+        .delete-history-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        .history-item {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .history-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .history-item h4 {
+            color: #333;
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+        }
+
+        .history-item .timestamp {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1.2rem;
+            font-weight: 500;
+        }
+
+        .summary-badges {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        /* Camera Modal Styles */
+        .camera-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-header {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        .camera-footer {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        #cameraVideo {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #000;
+        }
+
+        #cameraCanvas {
+            display: none;
+        }
+
+        .camera-btn-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 20px;
+        }
+
+        .camera-action-btn {
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .capture-btn {
+            background: white;
+            box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+
+        .capture-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .capture-btn::before {
+            content: '';
+            width: 48px;
+            height: 48px;
+            background: #FF9800;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .capture-btn:hover::before {
+            background: #F57C00;
+        }
+
+        .close-camera-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .close-camera-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .camera-guide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
+            margin: 40px;
+            pointer-events: none;
+            box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-guide::before {
+            content: 'Align ingredients label here';
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+        }
+
+        .camera-guide-corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: #FF9800;
+            border-style: solid;
+            border-width: 0;
+        }
+
+        .corner-top-left {
+            top: 40px;
+            left: 40px;
+            border-top-width: 3px;
+            border-left-width: 3px;
+        }
+
+        .corner-top-right {
+            top: 40px;
+            right: 40px;
+            border-top-width: 3px;
+            border-right-width: 3px;
+        }
+
+        .corner-bottom-left {
+            bottom: 40px;
+            left: 40px;
+            border-bottom-width: 3px;
+            border-left-width: 3px;
+        }
+
+        .corner-bottom-right {
+            bottom: 40px;
+            right: 40px;
+            border-bottom-width: 3px;
+            border-right-width: 3px;
+        }
+
+        .scan-line {
+            position: absolute;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #FF9800, transparent);
+            width: calc(100% - 80px);
+            left: 40px;
+            top: 40px;
+            animation: scanAnimation 2s ease-in-out infinite;
+        }
+
+        @keyframes scanAnimation {
+            0% {
+                top: 40px;
+            }
+            50% {
+                top: calc(100% - 40px);
+            }
+            100% {
+                top: 40px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1.5rem;
+            }
+
+            .header {
+                padding: 2rem 1.5rem;
+            }
+
+            .header h1 {
+                font-size: 2.2rem;
+            }
+
+            .input-section,
+            .results-section,
+            .history-section {
+                padding: 2rem;
+            }
+
+            .upload-section {
+                flex-direction: row;
+                justify-content: center;
+            }
+
+            .analysis-table {
+                font-size: 0.9rem;
+            }
+
+            .analysis-table th,
+            .analysis-table td {
+                padding: 1rem 0.8rem;
+            }
+
+            .history-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .camera-guide {
+                margin: 20px;
+            }
+
+            .corner-top-left {
+                top: 20px;
+                left: 20px;
+            }
+
+            .corner-top-right {
+                top: 20px;
+                right: 20px;
+            }
+
+            .corner-bottom-left {
+                bottom: 20px;
+                left: 20px;
+            }
+
+            .corner-bottom-right {
+                bottom: 20px;
+                right: 20px;
+            }
+
+            .scan-line {
+                width: calc(100% - 40px);
+                left: 20px;
+                top: 20px;
+            }
+
+            @keyframes scanAnimation {
+                0% {
+                    top: 20px;
+                }
+                50% {
+                    top: calc(100% - 20px);
+                }
+                100% {
+                    top: 20px;
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating Chemical Icons -->
+    <div class="floating-icons" id="floatingIcons"></div>
+
+    <!-- Camera Modal -->
+    <div class="camera-modal" id="cameraModal">
+        <div class="camera-container">
+            <div class="camera-header">
+                Scan Ingredient Label
+            </div>
+            <div style="position: relative;">
+                <video id="cameraVideo" autoplay playsinline></video>
+                <canvas id="cameraCanvas"></canvas>
+                <div class="camera-guide">
+                    <div class="camera-guide-corner corner-top-left"></div>
+                    <div class="camera-guide-corner corner-top-right"></div>
+                    <div class="camera-guide-corner corner-bottom-left"></div>
+                    <div class="camera-guide-corner corner-bottom-right"></div>
+                    <div class="scan-line"></div>
+                </div>
+            </div>
+            <div class="camera-footer">
+                <div class="camera-btn-container">
+                    <button class="camera-action-btn capture-btn" id="captureBtn" title="Capture Image"></button>
+                </div>
+            </div>
+        </div>
+        <button class="close-camera-btn" id="closeCameraBtn">Cancel</button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Food Ingredient Scanner</h1>
+            <p>Analyze food ingredients for safety and health information</p>
+        </div>
+
+        <div class="main-content">
+            <div class="input-section">
+                <div class="upload-section">
+                    <button class="btn upload-btn" onclick="document.getElementById('fileInput').click()">
+                        📷 Upload Image
+                    </button>
+                    <button class="btn camera-btn" id="openCameraBtn">
+                        📱 Scan Ingredients
+                    </button>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*">
+                </div>
+                
+                <div id="previewContainer" style="text-align: center; margin-bottom: 2rem; display: none;">
+                    <img id="imagePreview" class="image-preview">
+                </div>
+
+                <div class="search-container">
+                    <div class="search-label">🔍 Search Ingredients</div>
+                    <div class="search-icon">🔍</div>
+                    <textarea id="manualIngredients" class="search-input" placeholder="Enter ingredients to analyze...&#10;&#10;Example: Water, Sugar, Salt, Citric Acid, Natural Flavors"></textarea>
+                </div>
+
+                <button class="analyze-btn" id="analyzeBtn">
+                    🧪 Analyze Ingredients
+                </button>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <h3>Analysis Results</h3>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p class="loading-text" id="loadingText">Processing...</p>
+                </div>
+
+                <div id="errorSection" style="display: none;">
+                    <div class="error-message" id="errorMessage"></div>
+                </div>
+
+                <div id="ocrSection" style="display: none;">
+                    <div class="ocr-output" id="ocrOutput"></div>
+                </div>
+
+                <div id="analysisSection" style="display: none;">
+                    <table class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>Ingredient</th>
+                                <th>Safety Status</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analysisResults">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="history-section">
+                <div class="history-header">
+                    <h3>Analysis History</h3>
+                    <button class="delete-history-btn" id="deleteHistoryBtn" onclick="clearHistory()">
+                        🗑️ Clear History
+                    </button>
+                </div>
+                <div id="historyContainer">
+                    <p style="color: #666; text-align: center; padding: 2rem;">No previous analysis found</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let uploadedImage = null;
+        let analysisHistory = JSON.parse(localStorage.getItem('ingredientHistory') || '[]');
+        let stream = null;
+        let cameraActive = false;
+
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewContainer = document.getElementById('previewContainer');
+        const manualIngredients = document.getElementById('manualIngredients');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resultsSection = document.getElementById('resultsSection');
+        const loading = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        const errorSection = document.getElementById('errorSection');
+        const errorMessage = document.getElementById('errorMessage');
+        const ocrSection = document.getElementById('ocrSection');
+        const ocrOutput = document.getElementById('ocrOutput');
+        const analysisSection = document.getElementById('analysisSection');
+        const analysisResults = document.getElementById('analysisResults');
+        const historyContainer = document.getElementById('historyContainer');
+        
+        // Camera elements
+        const cameraModal = document.getElementById('cameraModal');
+        const openCameraBtn = document.getElementById('openCameraBtn');
+        const closeCameraBtn = document.getElementById('closeCameraBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const cameraVideo = document.getElementById('cameraVideo');
+        const cameraCanvas = document.getElementById('cameraCanvas');
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            displayHistory();
+            createFloatingIcons();
+            setupCameraListeners();
+        });
+
+        // Event listeners
+        fileInput.addEventListener('change', handleFileSelect);
+        analyzeBtn.addEventListener('click', handleAnalysis);
+
+        function setupCameraListeners() {
+            openCameraBtn.addEventListener('click', openCamera);
+            closeCameraBtn.addEventListener('click', closeCamera);
+            captureBtn.addEventListener('click', captureImage);
+        }
+
+        // Create floating chemical icons
+        function createFloatingIcons() {
+            const harmfulIcons = ['☠️', '⚠️', '🚫', '💀', '⚡', '🔥'];
+            const healthyIcons = ['🌿', '🥬', '🍃', '💚', '✅', '🌱'];
+            const floatingContainer = document.getElementById('floatingIcons');
+
+            if (!floatingContainer) {
+                console.error('Floating icons container not found');
+                return;
+            }
+
+            function addFloatingIcon() {
+                const isHarmful = Math.random() > 0.5;
+                const icons = isHarmful ? harmfulIcons : healthyIcons;
+                const icon = icons[Math.floor(Math.random() * icons.length)];
+                
+                const iconElement = document.createElement('div');
+                iconElement.className = `floating-icon ${isHarmful ? 'harmful' : 'healthy'}`;
+                iconElement.textContent = icon;
+                iconElement.style.left = Math.random() * 100 + '%';
+                iconElement.style.animationDelay = Math.random() * 5 + 's';
+                iconElement.style.animationDuration = (10 + Math.random() * 10) + 's';
+                
+                floatingContainer.appendChild(iconElement);
+                
+                // Remove icon after animation completes
+                setTimeout(() => {
+                    if (iconElement && iconElement.parentNode) {
+                        iconElement.parentNode.removeChild(iconElement);
+                    }
+                }, 20000);
+            }
+
+            // Add initial icons immediately
+            for (let i = 0; i < 3; i++) {
+                setTimeout(addFloatingIcon, i * 500);
+            }
+
+            // Add icons periodically
+            setInterval(addFloatingIcon, 3000);
+        }
+
+        // Camera functions
+        async function openCamera() {
+            try {
+                cameraModal.style.display = 'flex';
+                
+                const constraints = {
+                    video: {
+                        facingMode: 'environment', // Use back camera on mobile
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                cameraVideo.srcObject = stream;
+                cameraActive = true;
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                showError('Unable to access camera. Please check permissions or try another browser.');
+                closeCamera();
+            }
+        }
+
+        function closeCamera() {
+            cameraModal.style.display = 'none';
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            cameraActive = false;
+        }
+
+        function captureImage() {
+            if (!cameraActive) return;
+            
+            const context = cameraCanvas.getContext('2d');
+            
+            // Set canvas dimensions to match video
+            cameraCanvas.width = cameraVideo.videoWidth;
+            cameraCanvas.height = cameraVideo.videoHeight;
+            
+            // Draw current video frame to canvas
+            context.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+            
+            // Convert canvas to blob
+            cameraCanvas.toBlob(blob => {
+                uploadedImage = blob;
+                
+                // Display preview
+                const imageUrl = URL.createObjectURL(blob);
+                imagePreview.src = imageUrl;
+                previewContainer.style.display = 'block';
+                
+                // Close camera
+                closeCamera();
+                
+                // Auto-analyze the captured image
+                performOCR();
+            }, 'image/jpeg', 0.95);
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.type.startsWith('image/')) {
+                    uploadedImage = file;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        imagePreview.src = e.target.result;
+                        previewContainer.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    showError('Please select an image file (JPG, PNG, etc.)');
+                }
+            }
+        }
+
+        async function handleAnalysis() {
+            const manualText = manualIngredients.value.trim();
+            
+            if (uploadedImage) {
+                await performOCR();
+            } else if (manualText) {
+                await analyzeWithChemBERT(manualText);
+            } else {
+                showError('Please upload an image, scan with camera, or enter ingredients manually');
+            }
+        }
+
+        async function performOCR() {
+            if (!uploadedImage) return;
+
+            showLoading('Extracting text from image...');
+            hideError();
+            resultsSection.classList.add('show');
+            ocrSection.style.display = 'none';
+            analysisSection.style.display = 'none';
+
+            try {
+                const { data: { text } } = await Tesseract.recognize(uploadedImage, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            showLoading(`Processing image... ${Math.round(m.progress * 100)}%`);
+                        }
+                    }
+                });
+
+                if (!text.trim()) {
+                    showError('No text found in the image. Please try a clearer image.');
+                    return;
+                }
+
+                ocrOutput.textContent = text;
+                ocrSection.style.display = 'block';
+                
+                // Analyze the extracted text with ChemBERT
+                await analyzeWithChemBERT(text);
+                
+            } catch (error) {
+                console.error('OCR Error:', error);
+                showError('Error processing image. Please try again with a clearer image.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function analyzeWithChemBERT(text) {
+            showLoading('Analyzing ingredients...');
+            hideError();
+            resultsSection.classList.add('show');
+            analysisSection.style.display = 'none';
+
+            try {
+                // Clean and parse ingredients
+                const ingredients = text.toLowerCase()
+                    .split(/[,\n;]/)
+                    .map(ingredient => ingredient.trim())
+                    .filter(ingredient => ingredient.length > 0);
+
+                if (ingredients.length === 0) {
+                    showError('No valid ingredients found to analyze');
+                    return;
+                }
+
+                // Send request to your app.py backend
+                const response = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        ingredients: ingredients,
+                        text: text
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.status} ${response.statusText}`);
+                }
+
+                const results = await response.json();
+                displayAnalysisResults(results, text);
+
+            } catch (error) {
+                console.error('Analysis Error:', error);
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    showError('Unable to connect to the analysis server. Please ensure the backend is running.');
+                } else {
+                    showError(`Analysis failed: ${error.message}`);
+                }
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function displayAnalysisResults(apiResults, originalText) {
+            // Clear previous results
+            analysisResults.innerHTML = '';
+
+            // Handle different possible API response formats
+            let results = [];
+            
+            if (Array.isArray(apiResults)) {
+                results = apiResults;
+            } else if (apiResults.results && Array.isArray(apiResults.results)) {
+                results = apiResults.results;
+            } else if (apiResults.predictions && Array.isArray(apiResults.predictions)) {
+                results = apiResults.predictions;
+            } else {
+                showError('Unexpected response format from analysis server');
+                return;
+            }
+
+            if (results.length === 0) {
+                showError('No analysis results received');
+                return;
+            }
+
+            // Display results in table
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                
+                // Handle different possible result formats
+                const ingredient = result.ingredient || result.name || result.text || 'Unknown';
+                const status = result.status || result.safety || result.classification || 'unknown';
+                const category = result.category || result.type || result.class || 'Unknown';
+                const description = result.description || result.explanation || result.details || 'No description available';
+
+                row.innerHTML = `
+                    <td><strong>${ingredient}</strong></td>
+                    <td>
+                        <span class="status-${status.toLowerCase()}">${status.toUpperCase()}</span>
+                    </td>
+                    <td>${category}</td>
+                    <td>${description}</td>
+                `;
+                analysisResults.appendChild(row);
+            });
+
+            analysisSection.style.display = 'block';
+
+            // Save to history
+            saveToHistory(originalText, results);
+        }
+
+        function saveToHistory(originalText, results) {
+            const historyItem = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleString(),
+                originalText: originalText.substring(0, 100) + (originalText.length > 100 ? '...' : ''),
+                results: results,
+                summary: {
+                    safe: results.filter(r => (r.status || r.safety || r.classification || '').toLowerCase() === 'safe').length,
+                    caution: results.filter(r => (r.status || r.safety || r.classification || '').toLowerCase() === 'caution').length,
+                    avoid: results.filter(r => (r.status || r.safety || r.classification || '').toLowerCase() === 'avoid').length,
+                    total: results.length
+                }
+            };
+
+            analysisHistory.unshift(historyItem);
+            analysisHistory = analysisHistory.slice(0, 10); // Keep only last 10
+            localStorage.setItem('ingredientHistory', JSON.stringify(analysisHistory));
+            displayHistory();
+        }
+
+        function displayHistory() {
+            console.log('Displaying history, items:', analysisHistory.length);
+            
+            if (!historyContainer) {
+                console.error('History container not found');
+                return;
+            }
+
+            if (analysisHistory.length === 0) {
+                historyContainer.innerHTML = '<p style="color: #666; text-align: center; padding: 2rem;">No previous analysis found</p>';
+                return;
+            }
+
+            const historyHTML = analysisHistory.map(item => `
+                <div class="history-item">
+                    <h4>Analysis #${item.id}</h4>
+                    <div class="timestamp">📅 ${item.timestamp}</div>
+                    <p><strong>Input:</strong> ${item.originalText}</p>
+                    <div class="summary-badges">
+                        <span class="status-safe">${item.summary.safe} Safe</span>
+                        <span class="status-caution">${item.summary.caution} Caution</span>
+                        <span class="status-avoid">${item.summary.avoid} Avoid</span>
+                        <span class="status-unknown">${item.summary.total} Total Analyzed</span>
+                    </div>
+                </div>
+            `).join('');
+
+            historyContainer.innerHTML = historyHTML;
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all analysis history?')) {
+                analysisHistory = [];
+                localStorage.removeItem('ingredientHistory');
+                displayHistory();
+            }
+        }
+
+        function showLoading(message) {
+            loadingText.textContent = message;
+            loading.style.display = 'block';
+        }
+
+        function hideLoading() {
+            loading.style.display = 'none';
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorSection.style.display = 'block';
+        }
+
+        function hideError() {
+            errorSection.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
